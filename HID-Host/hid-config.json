@@ -1,0 +1,14 @@
+{
+  "vendor_id": "0x1D50",
+  "product_id": "0x615E",
+  "report_size": 32,
+  "interval": 1,
+  "recheck_interval": 10,
+  "send_cpu": "y",
+  "send_ram": "y",
+  "send_gpu": "y",
+  "send_disk": "y",
+  "send_date": "y",
+  "send_time": "y",
+  "send_volume": "y"
+}
