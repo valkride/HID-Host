@@ -1,0 +1,38 @@
+# GitHub Actions workflow to build Windows executables for both scripts using PyInstaller
+# This workflow will run on push and create BLE_finder.exe and hid-host.exe as artifacts
+
+name: Build EXE
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ '**' ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller hid bleak PyQt5 psutil GPUtil requests pycaw comtypes
+      - name: Build BLE_finder.exe
+        run: pyinstaller --onefile --windowed BLE_finder.pyw
+      - name: Build hid-host.exe
+        run: pyinstaller --onefile --windowed HID-Host/hid-host.pyw
+      - name: Upload BLE_finder.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: BLE_finder-exe
+          path: dist/BLE_finder.exe
+      - name: Upload hid-host.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: hid-host-exe
+          path: dist/hid-host.exe

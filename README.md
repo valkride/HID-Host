@@ -20,11 +20,6 @@ This repository contains two main Python applications for working with HID and B
   - `requests`
   - `pycaw` and `comtypes` (for volume stats, optional)
 
-Install all dependencies:
-```sh
-pip install -r requirements.txt
-```
-
 ---
 
 ## BLE_finder.pyw
@@ -72,6 +67,4 @@ The executables will be in the `dist/` folder.
 
 ---
 
-## License
-
-MIT License (add your own license if needed)
+This is my take on a HID-HOST to send data to a wireless ZMK/QMK keyboard. feel free to apply it anywhere you see fit!
