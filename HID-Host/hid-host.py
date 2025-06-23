@@ -43,8 +43,7 @@ def load_hid_config():
                 cfg.get('product_id'),
                 cfg.get('report_size', 32),
                 cfg.get('interval', 10),
-                cfg.get('recheck_interval', 10),
-                cfg.get('send_cpu', 'y'),
+                cfg.get('recheck_interval', 10),                cfg.get('send_cpu', 'y'),
                 cfg.get('send_ram', 'y'),
                 cfg.get('send_gpu', 'y'),
                 cfg.get('send_disk', 'y'),
@@ -133,6 +132,10 @@ def list_writeable_hid_paths(vendor_id, product_id, report):
     for d in hid.enumerate():
         if d['vendor_id'] == vendor_id and d['product_id'] == product_id:
             path = d['path']
+            # Skip keyboard/mouse interfaces
+            if b'KBD' in path or b'MOUSE' in path:
+                print(f"Skipping {path} (keyboard/mouse interface)")
+                continue
             print(f"Testing path: {path}")
             try:
                 h = hid.device()
@@ -195,17 +198,17 @@ def send_stats_via_ble(cpu, ram, disk, gpu):
         vol = get_volume_percent()
         vol_str = f"{int(vol):03d}"
     else:
-        vol_str = "000"
-    # Build the full report
+        vol_str = "000"    # Build the full report
     stats_bytes = ''.join(stat_fields).encode("ascii")  # 12 bytes
     date_bytes = date_str.encode("ascii")               # 6 bytes
     time_bytes = time_str.encode("ascii")               # 4 bytes
     vol_bytes = vol_str.encode("ascii")                 # 3 bytes
     report = bytearray(REPORT_SIZE)
-    report[:len(stats_bytes)] = stats_bytes             # 0-11
-    report[12:18] = date_bytes                         # 12-17
-    report[18:22] = time_bytes                         # 18-21
-    report[22:25] = vol_bytes                          # 22-24
+    report[0] = 0                                       # Start with 0 byte
+    report[1:1+len(stats_bytes)] = stats_bytes          # 1-12
+    report[13:19] = date_bytes                          # 13-18
+    report[19:23] = time_bytes                          # 19-22
+    report[23:26] = vol_bytes                           # 23-25
     # Only re-check all paths every RECHECK_INTERVAL cycles
     writeable_path_cache['counter'] += 1
     if writeable_path_cache['path'] is None or writeable_path_cache['counter'] >= RECHECK_INTERVAL:
@@ -232,6 +235,45 @@ def send_stats_via_ble(cpu, ram, disk, gpu):
     except Exception as e:
         print(f"Failed to open/write to device: {e}")
 
+def send_test_pattern():
+    """Send a simple test pattern: 0, 1, 2, 3, 4, ... up to report size."""
+    global writeable_path_cache
+    # Create incrementing byte array starting with 0: 0, 1, 2, 3, ...
+    report = bytearray(i % 256 for i in range(REPORT_SIZE))
+    print(f"Sending test pattern: {list(report)}")
+    # Find writeable path if needed
+    writeable_path_cache['counter'] += 1
+    if writeable_path_cache['path'] is None or writeable_path_cache['counter'] >= RECHECK_INTERVAL:
+        writeable_paths = list_writeable_hid_paths(VENDOR_ID, PRODUCT_ID, report)
+        if not writeable_paths:
+            print("No writeable HID device found (by VID/PID). Is it connected?")
+            writeable_path_cache['path'] = None
+            writeable_path_cache['counter'] = 0
+            return
+        writeable_path_cache['path'] = writeable_paths[0]
+        writeable_path_cache['counter'] = 0
+    path = writeable_path_cache['path']
+    try:
+        h = hid.device()
+        h.open_path(path)
+        print(f"Device opened successfully: {path}")
+        result = h.write(report)
+        if result > 0:
+            print("Test pattern sent to device (OS accepted write).")
+        else:
+            print("Write returned 0 (no bytes written).")
+        h.close()
+        print(f"Sent test pattern: {list(report)}")
+    except Exception as e:
+        print(f"Failed to open/write to device: {e}")
+
+def test_mode():
+    """Run in test mode - send incrementing byte pattern repeatedly"""
+    print("Running in TEST MODE - sending 1,2,3... byte pattern")
+    while True:
+        send_test_pattern()
+        time.sleep(SEND_INTERVAL)
+
 def main():
     while True:
         cpu = int(psutil.cpu_percent(interval=1))
@@ -248,4 +290,8 @@ def main():
         time.sleep(max(SEND_INTERVAL, 1))
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1].lower() == "test":
+        test_mode()
+    else:
+        main()
