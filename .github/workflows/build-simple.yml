@@ -26,7 +26,8 @@ jobs:
       run: |
         if (Test-Path "hidapi.dll") {
           echo "✓ hidapi.dll found in repository"
-          $size = (Get-Item "hidapi.dll").Length          echo "DLL size: $size bytes"
+          $size = (Get-Item "hidapi.dll").Length
+          echo "DLL size: $size bytes"
         } else {
           echo "✗ hidapi.dll not found!"
           exit 1
@@ -57,7 +58,8 @@ jobs:
           echo "HID-CLI size: $size bytes"
         } else {
           echo "✗ HID-CLI build failed!"
-          exit 1        }
+          exit 1
+        }
         
     - name: Prepare files for upload
       run: |
