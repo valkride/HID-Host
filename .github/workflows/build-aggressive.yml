@@ -1,0 +1,128 @@
+name: Build HID Host with DLL Inclusion
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        pip install hidapi
+        pip install psutil
+        
+    - name: Install optional dependencies
+      continue-on-error: true
+      run: |
+        pip install GPUtil
+        pip install pycaw
+        pip install comtypes
+        pip install pywin32
+        
+    - name: Locate hidapi DLLs
+      id: find-dlls
+      run: |
+        python -c "
+        import hid
+        import os
+        import glob
+        import site
+        
+        print('=== SEARCHING FOR HIDAPI DLLS ===')
+        hid_file = hid.__file__
+        print(f'HID module: {hid_file}')
+        
+        # Search locations
+        search_locations = []
+        
+        # 1. Same directory as hid module
+        hid_dir = os.path.dirname(hid_file)
+        search_locations.append(hid_dir)
+        
+        # 2. Site packages
+        for site_dir in site.getsitepackages():
+            search_locations.append(site_dir)
+            search_locations.append(os.path.join(site_dir, 'hid'))
+        
+        # 3. Check if .pyd file has embedded DLL functionality
+        if hid_file.endswith('.pyd'):
+            print(f'Found .pyd file (compiled extension): {hid_file}')
+        
+        # Search for actual DLL files
+        all_dlls = []
+        for location in search_locations:
+            if os.path.exists(location):
+                print(f'Searching in: {location}')
+                # Look for hidapi DLLs
+                patterns = ['*hidapi*.dll', '*libhidapi*.dll', 'hidapi.dll']
+                for pattern in patterns:
+                    dlls = glob.glob(os.path.join(location, '**', pattern), recursive=True)
+                    for dll in dlls:
+                        if os.path.isfile(dll):
+                            print(f'  Found DLL: {dll}')
+                            all_dlls.append(dll)
+        
+        print(f'Total DLLs found: {len(all_dlls)}')
+        for dll in all_dlls:
+            print(f'  - {dll}')
+        
+        # Test if hidapi works
+        try:
+            devices = hid.enumerate()
+            print(f'✓ HID works: found {len(devices)} devices')
+        except Exception as e:
+            print(f'✗ HID failed: {e}')
+        "
+        
+    - name: Build with maximum DLL collection
+      working-directory: HID-Host
+      run: |
+        echo "Building with maximum DLL collection..."
+        pyinstaller --onefile --console --debug all --add-data "hid-config.json;." --collect-all hid --collect-binaries hid --collect-data hid --copy-metadata hid --hidden-import hid --hidden-import ctypes --hidden-import ctypes.wintypes --name hid-host-max hid-host.pyw
+        
+    - name: List build contents
+      working-directory: HID-Host
+      run: |
+        echo "=== BUILD CONTENTS ==="
+        if (Test-Path "dist") { 
+          echo "dist directory contents:"
+          Get-ChildItem dist -Recurse | Format-Table Name,Length,LastWriteTime
+        }
+        if (Test-Path "build") {
+          echo "build directory exists"
+        }
+        
+    - name: Test executable
+      working-directory: HID-Host
+      continue-on-error: true
+      run: |
+        if (Test-Path "dist/hid-host-max.exe") {
+          echo "Testing executable..."
+          echo "File size: $((Get-Item 'dist/hid-host-max.exe').Length) bytes"
+          # Try to run it briefly
+          Start-Process -FilePath "dist/hid-host-max.exe" -ArgumentList "--help" -Wait -NoNewWindow -RedirectStandardOutput "test_output.txt" -RedirectStandardError "test_error.txt"
+          echo "=== STDOUT ==="
+          if (Test-Path "test_output.txt") { Get-Content "test_output.txt" }
+          echo "=== STDERR ==="  
+          if (Test-Path "test_error.txt") { Get-Content "test_error.txt" }
+        }
+        
+    - name: Upload executable
+      uses: actions/upload-artifact@v3
+      with:
+        name: hid-host-with-dlls
+        path: HID-Host/dist/hid-host-max.exe

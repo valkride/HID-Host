@@ -31,10 +31,43 @@ jobs:
         pip install comtypes
         pip install pywin32
         
-    - name: Build executable
+    - name: Find hidapi DLL and test
+      run: |
+        python -c "
+        import hid
+        import os
+        import glob
+        import site
+        
+        print('=== HIDAPI DLL DETECTION ===')
+        print('HID module location:', hid.__file__)
+        hid_dir = os.path.dirname(hid.__file__)
+        
+        # Look for DLLs in multiple locations
+        search_dirs = [hid_dir]
+        search_dirs.extend(site.getsitepackages())
+        
+        found_dlls = []
+        for search_dir in search_dirs:
+            if os.path.exists(search_dir):
+                dll_files = glob.glob(os.path.join(search_dir, '**', '*.dll'), recursive=True)
+                hidapi_dlls = [dll for dll in dll_files if 'hidapi' in dll.lower()]
+                found_dlls.extend(hidapi_dlls)
+        
+        print('Found hidapi DLLs:', found_dlls)
+        
+        # Test basic functionality
+        try:
+            devices = hid.enumerate()
+            print('✓ HID enumerate works, found', len(devices), 'devices')
+        except Exception as e:
+            print('✗ HID enumerate failed:', e)
+        "
+        
+    - name: Build executable with aggressive DLL collection
       working-directory: HID-Host
       run: |
-        pyinstaller --onefile --console --add-data "hid-config.json;." --collect-all hid --name hid-host hid-host.pyw
+        pyinstaller --onefile --console --add-data "hid-config.json;." --collect-all hid --collect-binaries hid --copy-metadata hid --copy-metadata hidapi --hidden-import hid --hidden-import ctypes --hidden-import ctypes.wintypes --name hid-host hid-host.pyw
         
     - name: Upload executable
       uses: actions/upload-artifact@v3
