@@ -35,10 +35,10 @@ jobs:
     - name: Build both versions
       working-directory: HID-Host
       run: |
-        echo "Building HID-host with repository DLL..."
+        echo "Building HID-host (GUI) from .pyw file..."
         pyinstaller --onefile --console --add-data "hid-config.json;." --add-binary "hidapi.dll;." --name hid-host hid-host.pyw
-        echo "Building HID-CLI with repository DLL..."
-        pyinstaller --onefile --console --add-data "hid-config.json;." --add-binary "hidapi.dll;." --name HID-CLI hid-host.pyw
+        echo "Building HID-CLI from .py file..."
+        pyinstaller --onefile --console --add-data "hid-config.json;." --add-binary "hidapi.dll;." --name HID-CLI hid-host.py
         
     - name: Verify builds
       working-directory: HID-Host
@@ -51,19 +51,25 @@ jobs:
           echo "✗ HID-host build failed!"
           exit 1
         }
-        if (Test-Path "dist/HID-CLI.exe") {          echo "✓ HID-CLI build successful!"
+        if (Test-Path "dist/HID-CLI.exe") {
+          echo "✓ HID-CLI build successful!"
           $size = (Get-Item "dist/HID-CLI.exe").Length
           echo "HID-CLI size: $size bytes"
         } else {
           echo "✗ HID-CLI build failed!"
-          exit 1
-        }
+          exit 1        }
+        
+    - name: Prepare files for upload
+      run: |
+        mkdir upload-temp
+        copy "HID-Host\dist\hid-host.exe" "upload-temp\"
+        copy "HID-Host\dist\HID-CLI.exe" "upload-temp\"
+        copy "BLE_finder.pyw" "upload-temp\"
+        echo "Files prepared in upload-temp directory:"
+        dir upload-temp
         
     - name: Upload all tools
       uses: actions/upload-artifact@v4
       with:
         name: hid-tools-complete
-        path: |
-          HID-Host/dist/hid-host.exe
-          HID-Host/dist/HID-CLI.exe
-          BLE_finder.pyw
+        path: upload-temp/*
