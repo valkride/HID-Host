@@ -19,7 +19,7 @@ jobs:
         
     - name: Install dependencies
       run: |
-        pip install pyinstaller psutil hidapi
+        pip install pyinstaller psutil hidapi gputil pywin32
         
     - name: Verify DLL exists
       working-directory: HID-Host
@@ -37,9 +37,9 @@ jobs:
       working-directory: HID-Host
       run: |
         echo "Building HID-host (GUI) from .pyw file..."
-        pyinstaller --onefile --console --add-data "hid-config.json;." --add-binary "hidapi.dll;." --name hid-host hid-host.pyw
+        pyinstaller --onefile --console --add-data "hid-config.json;." --add-binary "hidapi.dll;." --hidden-import=GPUtil --hidden-import=win32pdh --hidden-import=win32api --hidden-import=pywintypes --name hid-host hid-host.pyw
         echo "Building HID-CLI from .py file..."
-        pyinstaller --onefile --console --add-data "hid-config.json;." --add-binary "hidapi.dll;." --name HID-CLI hid-host.py
+        pyinstaller --onefile --console --add-data "hid-config.json;." --add-binary "hidapi.dll;." --hidden-import=GPUtil --hidden-import=win32pdh --hidden-import=win32api --hidden-import=pywintypes --name HID-CLI hid-host.py
         
     - name: Build BLE finder
       run: |
