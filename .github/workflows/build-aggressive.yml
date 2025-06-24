@@ -87,12 +87,110 @@ jobs:
         except Exception as e:
             print(f'✗ HID failed: {e}')
         "
+          - name: Find and manually include hidapi DLL
+      id: find-dll
+      run: |
+        python -c "
+        import hid
+        import os
+        import glob
+        import site
+        import shutil
         
-    - name: Build with maximum DLL collection
+        print('=== MANUAL DLL SEARCH AND COPY ===')
+        
+        # Get all possible locations
+        search_dirs = []
+        search_dirs.append(os.path.dirname(hid.__file__))
+        search_dirs.extend(site.getsitepackages())
+        
+        # Also check Python installation directory
+        import sys
+        search_dirs.append(os.path.dirname(sys.executable))
+        search_dirs.append(os.path.join(os.path.dirname(sys.executable), 'DLLs'))
+        search_dirs.append(os.path.join(os.path.dirname(sys.executable), 'Library', 'bin'))
+        
+        found_dlls = []
+        for search_dir in search_dirs:
+            if os.path.exists(search_dir):
+                print(f'Searching: {search_dir}')
+                # Look recursively for hidapi DLLs
+                for root, dirs, files in os.walk(search_dir):
+                    for file in files:
+                        if file.lower().endswith('.dll') and 'hidapi' in file.lower():
+                            dll_path = os.path.join(root, file)
+                            print(f'  Found: {dll_path}')
+                            found_dlls.append(dll_path)
+        
+        # Also look for any DLL that might contain hidapi
+        print('\\nSearching for any DLL that might contain hidapi...')
+        import subprocess
+        try:
+            # Use where command to find hidapi.dll in PATH
+            result = subprocess.run(['where', 'hidapi.dll'], capture_output=True, text=True)
+            if result.returncode == 0:
+                for line in result.stdout.strip().split('\\n'):
+                    if line.strip():
+                        print(f'  Found in PATH: {line.strip()}')
+                        found_dlls.append(line.strip())
+        except:
+            pass
+        
+        # Remove duplicates
+        found_dlls = list(set(found_dlls))
+        
+        print(f'\\nTotal unique DLLs found: {len(found_dlls)}')
+        for dll in found_dlls:
+            print(f'  - {dll}')
+        
+        # Copy DLLs to HID-Host directory for explicit inclusion
+        if found_dlls:
+            os.makedirs('HID-Host/dlls', exist_ok=True)
+            dll_list = []
+            for dll in found_dlls:
+                if os.path.exists(dll):
+                    dll_name = os.path.basename(dll)
+                    dest = f'HID-Host/dlls/{dll_name}'
+                    shutil.copy2(dll, dest)
+                    print(f'Copied {dll} -> {dest}')
+                    dll_list.append(f'dlls/{dll_name}')
+            
+            # Write the DLL list for the build step
+            with open('dll_list.txt', 'w') as f:
+                for dll in dll_list:
+                    f.write(f'--add-binary \"{dll};.\" ')
+            print(f'\\nWrote build arguments to dll_list.txt')
+        else:
+            print('No DLLs found - will try alternative approach')
+            with open('dll_list.txt', 'w') as f:
+                f.write('')
+        "
+        
+    - name: Build with manually found DLLs
       working-directory: HID-Host
       run: |
-        echo "Building with maximum DLL collection..."
-        pyinstaller --onefile --console --debug all --add-data "hid-config.json;." --collect-all hid --collect-binaries hid --collect-data hid --copy-metadata hid --hidden-import hid --hidden-import ctypes --hidden-import ctypes.wintypes --name hid-host-max hid-host.pyw
+        echo "=== BUILDING WITH MANUAL DLL INCLUSION ==="
+        
+        # Read the DLL arguments
+        $dll_args = ""
+        if (Test-Path "../dll_list.txt") {
+          $dll_args = Get-Content "../dll_list.txt" -Raw
+          echo "DLL arguments: $dll_args"
+        }
+        
+        # Build with explicit DLL inclusion
+        $cmd = "pyinstaller --onefile --console --add-data `"hid-config.json;.`" --collect-all hid $dll_args --name hid-host-manual hid-host.pyw"
+        echo "Build command: $cmd"
+        Invoke-Expression $cmd
+        
+    - name: Alternative build with different hidapi
+      working-directory: HID-Host
+      continue-on-error: true
+      run: |
+        echo "=== TRYING ALTERNATIVE HIDAPI PACKAGE ==="
+        pip uninstall hidapi -y
+        pip install hid
+        pyinstaller --onefile --console --add-data "hid-config.json;." --collect-all hid --name hid-host-alt hid-host.pyw
         
     - name: List build contents
       working-directory: HID-Host
