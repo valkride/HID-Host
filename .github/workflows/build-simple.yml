@@ -26,35 +26,44 @@ jobs:
       run: |
         if (Test-Path "hidapi.dll") {
           echo "✓ hidapi.dll found in repository"
-          $size = (Get-Item "hidapi.dll").Length
-          echo "DLL size: $size bytes"
+          $size = (Get-Item "hidapi.dll").Length          echo "DLL size: $size bytes"
         } else {
           echo "✗ hidapi.dll not found!"
           exit 1
         }
         
-    - name: Build with included DLL
+    - name: Build both versions
       working-directory: HID-Host
       run: |
-        echo "Building with repository DLL..."
+        echo "Building HID-host with repository DLL..."
         pyinstaller --onefile --console --add-data "hid-config.json;." --add-binary "hidapi.dll;." --name hid-host hid-host.pyw
+        echo "Building HID-CLI with repository DLL..."
+        pyinstaller --onefile --console --add-data "hid-config.json;." --add-binary "hidapi.dll;." --name HID-CLI hid-host.pyw
         
-    - name: Verify build
+    - name: Verify builds
       working-directory: HID-Host
       run: |
         if (Test-Path "dist/hid-host.exe") {
-          echo "✓ Build successful!"
+          echo "✓ HID-host build successful!"
           $size = (Get-Item "dist/hid-host.exe").Length
-          echo "Executable size: $size bytes"
+          echo "HID-host size: $size bytes"
         } else {
-          echo "✗ Build failed!"
+          echo "✗ HID-host build failed!"
+          exit 1
+        }
+        if (Test-Path "dist/HID-CLI.exe") {          echo "✓ HID-CLI build successful!"
+          $size = (Get-Item "dist/HID-CLI.exe").Length
+          echo "HID-CLI size: $size bytes"
+        } else {
+          echo "✗ HID-CLI build failed!"
           exit 1
         }
         
-    - name: Upload executable and BLE finder
+    - name: Upload all tools
       uses: actions/upload-artifact@v4
       with:
-        name: hid-host-with-ble-finder
+        name: hid-tools-complete
         path: |
           HID-Host/dist/hid-host.exe
+          HID-Host/dist/HID-CLI.exe
           BLE_finder.pyw
