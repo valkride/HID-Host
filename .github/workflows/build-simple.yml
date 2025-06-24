@@ -51,8 +51,10 @@ jobs:
           exit 1
         }
         
-    - name: Upload executable
+    - name: Upload executable and BLE finder
       uses: actions/upload-artifact@v4
       with:
-        name: hid-host-with-dll
-        path: HID-Host/dist/hid-host.exe
+        name: hid-host-with-ble-finder
+        path: |
+          HID-Host/dist/hid-host.exe
+          BLE_finder.pyw
