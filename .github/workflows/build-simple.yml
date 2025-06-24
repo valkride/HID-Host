@@ -1,0 +1,58 @@
+name: Build with Included DLL
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        pip install pyinstaller psutil hidapi
+        
+    - name: Verify DLL exists
+      working-directory: HID-Host
+      run: |
+        if (Test-Path "hidapi.dll") {
+          echo "✓ hidapi.dll found in repository"
+          $size = (Get-Item "hidapi.dll").Length
+          echo "DLL size: $size bytes"
+        } else {
+          echo "✗ hidapi.dll not found!"
+          exit 1
+        }
+        
+    - name: Build with included DLL
+      working-directory: HID-Host
+      run: |
+        echo "Building with repository DLL..."
+        pyinstaller --onefile --console --add-data "hid-config.json;." --add-binary "hidapi.dll;." --name hid-host hid-host.pyw
+        
+    - name: Verify build
+      working-directory: HID-Host
+      run: |
+        if (Test-Path "dist/hid-host.exe") {
+          echo "✓ Build successful!"
+          $size = (Get-Item "dist/hid-host.exe").Length
+          echo "Executable size: $size bytes"
+        } else {
+          echo "✗ Build failed!"
+          exit 1
+        }
+        
+    - name: Upload executable
+      uses: actions/upload-artifact@v3
+      with:
+        name: hid-host-with-dll
+        path: HID-Host/dist/hid-host.exe
