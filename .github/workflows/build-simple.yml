@@ -33,7 +33,7 @@ jobs:
           exit 1
         }
         
-    - name: Build both versions
+    - name: Build HID tools
       working-directory: HID-Host
       run: |
         echo "Building HID-host (GUI) from .pyw file..."
@@ -41,7 +41,12 @@ jobs:
         echo "Building HID-CLI from .py file..."
         pyinstaller --onefile --console --add-data "hid-config.json;." --add-binary "hidapi.dll;." --name HID-CLI hid-host.py
         
-    - name: Verify builds
+    - name: Build BLE finder
+      run: |
+        echo "Building BLE_finder from .pyw file..."
+        pyinstaller --onefile --console --name BLE_finder BLE_finder.pyw
+        
+    - name: Verify HID builds
       working-directory: HID-Host
       run: |
         if (Test-Path "dist/hid-host.exe") {
@@ -61,12 +66,23 @@ jobs:
           exit 1
         }
         
+    - name: Verify BLE finder build
+      run: |
+        if (Test-Path "dist/BLE_finder.exe") {
+          echo "✓ BLE_finder build successful!"
+          $size = (Get-Item "dist/BLE_finder.exe").Length
+          echo "BLE_finder size: $size bytes"
+        } else {
+          echo "✗ BLE_finder build failed!"
+          exit 1
+        }
+        
     - name: Prepare files for upload
       run: |
         mkdir upload-temp
         copy "HID-Host\dist\hid-host.exe" "upload-temp\"
         copy "HID-Host\dist\HID-CLI.exe" "upload-temp\"
-        copy "BLE_finder.pyw" "upload-temp\"
+        copy "dist\BLE_finder.exe" "upload-temp\"
         echo "Files prepared in upload-temp directory:"
         dir upload-temp
         
