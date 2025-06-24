@@ -52,7 +52,7 @@ jobs:
         }
         
     - name: Upload executable
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: hid-host-with-dll
         path: HID-Host/dist/hid-host.exe
